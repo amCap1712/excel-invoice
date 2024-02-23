@@ -1,12 +1,14 @@
+import os
 import traceback
-from datetime import date
+from datetime import date, datetime
 
 from PyQt5.QtWidgets import QWidget, QPushButton, QVBoxLayout, QFileDialog, QDateEdit, QLineEdit, \
     QHBoxLayout, QFormLayout, QPlainTextEdit, QDialog, QDesktopWidget
 from PyQt5.QtCore import QDir, QObject, pyqtSignal, QSettings, QThreadPool, QRunnable, pyqtSlot
 from dateutil.relativedelta import relativedelta
 
-from core import get_all_data, RESTAURANTS, process_data, write_all_invoices, write_cancelled_df
+from core import RESTAURANTS, process_data
+from io import read_all_data, write_cancelled_df, write_all_invoices
 
 
 class WorkerSignals(QObject):
@@ -32,21 +34,29 @@ class Worker(QRunnable):
 
     @pyqtSlot()
     def run(self):
+        # TODO: use logger object instead of passing around updater
         updater = lambda x: self.signals.progress.emit(x)
         try:
-            df = get_all_data(updater, self.from_date, self.to_date, self.input_directory)
+            df = read_all_data(updater, self.from_date, self.to_date, self.input_directory)
+
+            suffix = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+
             for restaurant in RESTAURANTS:
                 serviced_df, cancelled_df = process_data(updater, self.from_date, self.to_date, df)
+
+                if not cancelled_df.empty and not serviced_df.empty:
+                    restaurant_base_path = os.path.join(self.input_directory, restaurant.value, suffix)
+                    os.makedirs(restaurant_base_path, exist_ok=True)
+
                 if cancelled_df.empty:
                     updater(f"No cancelled tours for {restaurant.value}")
                 else:
-                    write_cancelled_df(updater, self.input_directory, restaurant, cancelled_df)
+                    write_cancelled_df(updater, restaurant_base_path, restaurant, cancelled_df)
 
                 if serviced_df.empty:
                     updater(f"No tours found for {restaurant.value}")
                 else:
-                    write_all_invoices(updater, self.input_directory, restaurant, serviced_df)
-
+                    write_all_invoices(updater, restaurant_base_path, restaurant, serviced_df)
         except Exception:
             updater(traceback.format_exc())
         finally:

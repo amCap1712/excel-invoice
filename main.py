@@ -16,4 +16,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # TODO: setup CI to package as exe
     main()

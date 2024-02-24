@@ -1,8 +1,11 @@
 import sys
 
+import pandas as pd
 from PyQt5.QtWidgets import QApplication
 
-from gui import InvoiceGeneratorApp
+from app.gui import InvoiceGeneratorApp
+
+pd.options.mode.copy_on_write = True
 
 
 def main():

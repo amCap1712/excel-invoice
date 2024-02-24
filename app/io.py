@@ -2,6 +2,7 @@ import os
 import traceback
 from datetime import date
 
+import pandas as pd
 from dateutil.relativedelta import relativedelta
 from openpyxl.cell import WriteOnlyCell
 from openpyxl.reader.excel import load_workbook
@@ -9,7 +10,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.workbook import Workbook
 from pandas import concat, DataFrame
 
-from core import RESTAURANTS
+from .core import RESTAURANTS
 
 
 MAX_ROWS = 50
@@ -57,7 +58,7 @@ def list_files(updater, from_date, to_date, base_dir):
     return files
 
 
-def get_sheet_contents(sheet):
+def read_sheet(sheet):
     header = None
     data = []
 
@@ -84,18 +85,22 @@ def get_sheet_contents(sheet):
     return header, data or None
 
 
-def get_file_contents(file) -> DataFrame | None:
+def read_file(file) -> DataFrame | None:
     dfs = []
 
     workbook = load_workbook(file, read_only=True)
     for restaurant in RESTAURANTS:
         sheet = workbook[restaurant.value]
-        header, data = get_sheet_contents(sheet)
+        header, data = read_sheet(sheet)
         if data is None:
             continue
         df = DataFrame(data, columns=header)
         df = df.dropna(axis=1, how="all")
         df["Restaurant"] = restaurant.value
+
+        df["File Name"] = os.path.basename(file)
+        df.insert(0, "File Name", df.pop("File Name"))
+
         dfs.append(df)
     workbook.close()
 
@@ -105,13 +110,13 @@ def get_file_contents(file) -> DataFrame | None:
     return concat(dfs, ignore_index=True)
 
 
-def read_all_data(updater, from_date, to_date, base_dir):
+def read_all_files(updater, from_date, to_date, base_dir):
     files = list_files(updater, from_date, to_date, base_dir)
-    updater("Found {} files".format(len(files)))
+    updater(f"Found {len(files)} files")
 
     dfs = []
     for file in files:
-        df = get_file_contents(file)
+        df = read_file(file)
         if df is None:
             updater("No data found for " + file)
             continue
@@ -125,6 +130,10 @@ def read_all_data(updater, from_date, to_date, base_dir):
     return combined_df
 
 
+def read_rates_file(base_dir):
+    return pd.read_excel(os.path.join(base_dir, "Rates.xlsx"))
+
+
 def write_invoice(updater, workbook, save_path, group: DataFrame):
     # TODO: write invoice header
     sorted_group = group.sort_values("Service Date Cleaned")
@@ -135,7 +144,6 @@ def write_invoice(updater, workbook, save_path, group: DataFrame):
 
     columns = ["Tour Code", "Tour Manager", "Service Date", "Service Type", "Adult", "Children", "Price Adult", "Price Child"]
     write_df = sorted_group[columns]
-    write_df["Service Date To Print"] = sorted_group.apply(lambda r: r["Service Date Cleaned"] or r["Service Date"], axis=1)
 
     # itertuples cannot handle space in column name properly
     write_df = write_df.rename(lambda x: x.replace(" ", "_"), axis="columns")
@@ -146,7 +154,7 @@ def write_invoice(updater, workbook, save_path, group: DataFrame):
 
     for idx, row in enumerate(write_df.itertuples(index=False)):
         n_row = idx + offset
-        service_date_cell = WriteOnlyCell(ws, row.Service_Date_To_Print)
+        service_date_cell = WriteOnlyCell(ws, row.Service_Date)
         service_date_cell.number_format = "dd mmm"
         total_formula = f"=E{n_row} * G{n_row} + F{n_row} * H{n_row}"
         ws.append([
@@ -182,11 +190,11 @@ def write_all_invoices(updater, base_dir, df: DataFrame):
             updater("Unable to write invoice for {name}: {e}".format(name=name, e=traceback.format_exc()))
 
 
-def write_cancelled_df(updater, base_dir, df: DataFrame):
+def write_auxiliary_df(updater, base_dir, name, df: DataFrame):
     wb = Workbook()
     ws = wb.active
     for row in dataframe_to_rows(df, index=False, header=True):
         ws.append(row)
-    save_path = os.path.join(base_dir, "Cancelled.xlsx")
+    save_path = os.path.join(base_dir, f"{name}.xlsx")
     wb.save(save_path)
-    updater(f"Saved cancelled tours to {save_path}")
+    updater(f"Saved {name} tours to {save_path}")

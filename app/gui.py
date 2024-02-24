@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import QWidget, QPushButton, QVBoxLayout, QFileDialog, QDat
 from PyQt5.QtCore import QDir, QObject, pyqtSignal, QSettings, QThreadPool, QRunnable, pyqtSlot
 from dateutil.relativedelta import relativedelta
 
-from core import RESTAURANTS, process_data
-from io import read_all_data, write_cancelled_df, write_all_invoices
+from .core import RESTAURANTS, process, process_rates_df
+from .io import read_all_files, write_auxiliary_df, write_all_invoices, read_rates_file
 
 
 class WorkerSignals(QObject):
@@ -37,26 +37,33 @@ class Worker(QRunnable):
         # TODO: use logger object instead of passing around updater
         updater = lambda x: self.signals.progress.emit(x)
         try:
-            df = read_all_data(updater, self.from_date, self.to_date, self.input_directory)
+            df = read_all_files(updater, self.from_date, self.to_date, self.input_directory)
+            rates_df = read_rates_file(self.input_directory)
+            rates_df = process_rates_df(updater, rates_df)
 
             suffix = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
             for restaurant in RESTAURANTS:
-                serviced_df, cancelled_df = process_data(updater, self.from_date, self.to_date, df)
+                serviced_df, cancelled_df, invalid_df = process(self.from_date, self.to_date, rates_df, df)
 
-                if not cancelled_df.empty and not serviced_df.empty:
-                    restaurant_base_path = os.path.join(self.input_directory, restaurant.value, suffix)
+                restaurant_base_path = os.path.join(self.input_directory, restaurant.value, suffix)
+                if not (cancelled_df.empty and serviced_df.empty and invalid_df.empty):
                     os.makedirs(restaurant_base_path, exist_ok=True)
 
                 if cancelled_df.empty:
                     updater(f"No cancelled tours for {restaurant.value}")
                 else:
-                    write_cancelled_df(updater, restaurant_base_path, restaurant, cancelled_df)
+                    write_auxiliary_df(updater, restaurant_base_path, "Cancelled", cancelled_df)
+
+                if invalid_df.empty:
+                    updater(f"No invalid tour entries for {restaurant.value}")
+                else:
+                    write_auxiliary_df(updater, restaurant_base_path, "Invalid", invalid_df)
 
                 if serviced_df.empty:
                     updater(f"No tours found for {restaurant.value}")
                 else:
-                    write_all_invoices(updater, restaurant_base_path, restaurant, serviced_df)
+                    write_all_invoices(updater, restaurant_base_path, serviced_df)
         except Exception:
             updater(traceback.format_exc())
         finally:

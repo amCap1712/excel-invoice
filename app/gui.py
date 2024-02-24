@@ -1,3 +1,4 @@
+import sys
 import os
 import traceback
 from datetime import date, datetime
@@ -5,10 +6,18 @@ from datetime import date, datetime
 from PyQt5.QtWidgets import QWidget, QPushButton, QVBoxLayout, QFileDialog, QDateEdit, QLineEdit, \
     QHBoxLayout, QFormLayout, QPlainTextEdit, QDialog, QDesktopWidget
 from PyQt5.QtCore import QDir, QObject, pyqtSignal, QSettings, QThreadPool, QRunnable, pyqtSlot
+from PyQt5.QtGui import QIcon
 from dateutil.relativedelta import relativedelta
 
 from .core import RESTAURANTS, process, process_rates_df
 from .io import read_all_files, write_auxiliary_df, write_all_invoices, read_rates_file
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base_path = getattr(sys, "_MEIPASS", os.path.join(os.path.dirname(__file__), ".."))
+    print(base_path)
+    return os.path.join(base_path, relative_path)
 
 
 class WorkerSignals(QObject):
@@ -114,6 +123,7 @@ class InvoiceGeneratorApp(QWidget):
         self.check_generate_button_state()
 
     def init_ui(self):
+        self.setWindowIcon(QIcon(resource_path("./icon.png")))
         self.setWindowTitle("Invoice Generator")
         qr = self.frameGeometry()
         cp = QDesktopWidget().availableGeometry().center()

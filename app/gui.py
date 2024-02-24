@@ -123,7 +123,8 @@ class InvoiceGeneratorApp(QWidget):
         self.check_generate_button_state()
 
     def init_ui(self):
-        self.setWindowIcon(QIcon(resource_path("./icon.png")))
+        self.icon = QIcon(resource_path("./icon.png"))
+        self.setWindowIcon(self.icon)
         self.setWindowTitle("Invoice Generator")
         qr = self.frameGeometry()
         cp = QDesktopWidget().availableGeometry().center()
@@ -171,6 +172,7 @@ class InvoiceGeneratorApp(QWidget):
         self.setLayout(layout)
 
         self.logging_dialog = QLoggingDialog()
+        self.logging_dialog.setWindowIcon(self.icon)
 
     def choose_from_date(self, from_date):
         self.to_date_selector.setMinimumDate(from_date)

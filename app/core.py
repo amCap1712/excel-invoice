@@ -48,12 +48,12 @@ def filter_cancelled_tours(df: DataFrame) -> tuple[DataFrame, DataFrame]:
     if "Remarks" in df.columns:
         cancelled_mask_1 = df["Remarks"].fillna("").str.lower().str.startswith("cancel")
     else:
-        cancelled_mask_1 = True
+        cancelled_mask_1 = False
 
     if "Delivery" in df.columns:
         cancelled_mask_2 = df["Delivery"].fillna("").str.lower().str.startswith("cancel")
     else:
-        cancelled_mask_2 = True
+        cancelled_mask_2 = False
 
     cancelled_mask = cancelled_mask_1 | cancelled_mask_2
 
@@ -78,12 +78,14 @@ def filter_unknown_rates(df: DataFrame, rates_df: DataFrame) -> tuple[DataFrame,
     df["Dmc To Join"] = df["Dmc"].str.lower().str.strip().str.split().str.join(" ")
     df = df.merge(rates_df, how="left", on=["Dmc To Join", "Service Type"])
 
+    if "Price Child" not in df.columns:
+        df["Price Child"] = 0
+    if "Price Adult" not in df.columns:
+        df["Price Adult"] = 0
+
     unknown_mask = (df["Rate"].isna() | df["Rate"].isnull()) & df["Price Adult"].isna() & df["Price Child"].isna()
     unknown_df = df.loc[unknown_mask]
     known_df = df.loc[~unknown_mask]
-
-    known_df["Price Adult"] = known_df["Price Adult"].fillna(known_df["Rate"])
-    known_df["Price Child"] = known_df["Price Child"].fillna(known_df["Rate Child"])
 
     return known_df, unknown_df
 

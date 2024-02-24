@@ -46,24 +46,24 @@ class Worker(QRunnable):
             for restaurant in RESTAURANTS:
                 serviced_df, cancelled_df, invalid_df = process(self.from_date, self.to_date, rates_df, df)
 
-                restaurant_base_path = os.path.join(self.input_directory, restaurant.value, suffix)
+                restaurant_base_path = os.path.join(self.input_directory, restaurant.name, suffix)
                 if not (cancelled_df.empty and serviced_df.empty and invalid_df.empty):
                     os.makedirs(restaurant_base_path, exist_ok=True)
 
                 if cancelled_df.empty:
-                    updater(f"No cancelled tours for {restaurant.value}")
+                    updater(f"No cancelled tours for {restaurant.name}")
                 else:
                     write_auxiliary_df(updater, restaurant_base_path, "Cancelled", cancelled_df)
 
                 if invalid_df.empty:
-                    updater(f"No invalid tour entries for {restaurant.value}")
+                    updater(f"No invalid tour entries for {restaurant.name}")
                 else:
                     write_auxiliary_df(updater, restaurant_base_path, "Invalid", invalid_df)
 
                 if serviced_df.empty:
-                    updater(f"No tours found for {restaurant.value}")
+                    updater(f"No tours found for {restaurant.name}")
                 else:
-                    write_all_invoices(updater, restaurant_base_path, serviced_df)
+                    write_all_invoices(updater, restaurant_base_path, restaurant.address, serviced_df)
         except Exception:
             updater(traceback.format_exc())
         finally:
@@ -130,7 +130,7 @@ class InvoiceGeneratorApp(QWidget):
         input_dir_layout.addWidget(self.input_dir_line_edit)
         input_dir_layout.addWidget(self.input_dir_button)
 
-        to_date = date.today()
+        to_date = date.today() + relativedelta(years=-1, month=12, day=31)
         from_date = to_date + relativedelta(months=-1, day=1)
 
         self.from_date_selector = QDateEdit()

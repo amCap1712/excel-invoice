@@ -1,15 +1,27 @@
+from dataclasses import dataclass
 from datetime import datetime, date
-from enum import Enum
+from textwrap import dedent
 
 from pandas import DataFrame, Timestamp, concat
 
 
-class Restaurant(Enum):
-    DAWAT = "Dawat"
-    WELCOME_INDIA = "WelcomeIndia"
+@dataclass
+class Restaurant:
+    name: str
+    address: str
 
 
-RESTAURANTS = [Restaurant.DAWAT, Restaurant.WELCOME_INDIA]
+RESTAURANTS = [
+    Restaurant("Dawat", dedent("""
+        Dawat
+        58 Avenue du 8 mai 1945
+        93150 Le Blanc Mesnil Paris, France.
+    """).strip()),
+    Restaurant("WelcomeIndia", dedent("""
+        WelcomeIndia
+        Paris, France.
+    """).strip())
+]
 
 
 def convert_to_date(value):
@@ -87,6 +99,9 @@ def filter_unknown_rates(df: DataFrame, rates_df: DataFrame) -> tuple[DataFrame,
     unknown_df = df.loc[unknown_mask]
     known_df = df.loc[~unknown_mask]
 
+    known_df["Price Adult"] = known_df["Price Adult"].fillna(known_df["Rate"])
+    known_df["Price Child"] = known_df["Price Child"].fillna(known_df["Rate Child"])
+
     return known_df, unknown_df
 
 
@@ -117,6 +132,9 @@ def fixup_invalid_df(invalid_df: DataFrame, reason: str) -> DataFrame | None:
 
 
 def process(from_date, to_date, rates_df: DataFrame, df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
+    if "Tour Code" in df.columns:
+        df["Tour Code"] = df["Tour Code"].str.strip()
+
     df, unknown_dates_df = filter_unknown_dates(df)
     df = df.loc[(df["Service Date Cleaned"] >= from_date) & (df["Service Date Cleaned"] <= to_date)]
 

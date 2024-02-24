@@ -1,11 +1,14 @@
 import os
 import traceback
 from datetime import date
+from typing import Optional
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from openpyxl.cell import WriteOnlyCell
 from openpyxl.reader.excel import load_workbook
+from openpyxl.styles import Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.workbook import Workbook
 from pandas import concat, DataFrame
@@ -15,6 +18,10 @@ from .core import RESTAURANTS
 
 MAX_ROWS = 50
 MAX_COLS = 25
+FONT_BOLD = Font(bold=True)
+ALIGNMENT_CENTER = Alignment(horizontal="center", vertical="center")
+SIDE_BLACK = Side(border_style="thin", color="000000")
+BORDER_BLACK = Border(top=SIDE_BLACK, bottom=SIDE_BLACK, left=SIDE_BLACK, right=SIDE_BLACK)
 
 
 def get_directories(from_date: date, to_date: date):
@@ -90,13 +97,13 @@ def read_file(file) -> DataFrame | None:
 
     workbook = load_workbook(file, read_only=True)
     for restaurant in RESTAURANTS:
-        sheet = workbook[restaurant.value]
+        sheet = workbook[restaurant.name]
         header, data = read_sheet(sheet)
         if data is None:
             continue
         df = DataFrame(data, columns=header)
         df = df.dropna(axis=1, how="all")
-        df["Restaurant"] = restaurant.value
+        df["Restaurant"] = restaurant.name
 
         df["File Name"] = os.path.basename(file)
         df.insert(0, "File Name", df.pop("File Name"))
@@ -134,57 +141,111 @@ def read_rates_file(base_dir):
     return pd.read_excel(os.path.join(base_dir, "Rates.xlsx"))
 
 
-def write_invoice(updater, workbook, save_path, group: DataFrame):
-    # TODO: write invoice header
+def cell(ws, value, *,
+         border: Optional[Border] = BORDER_BLACK,
+         alignment: Optional[Alignment] = ALIGNMENT_CENTER,
+         font: Optional[Font] = None):
+    _cell = WriteOnlyCell(ws, value)
+    if border:
+        _cell.border = border
+    if alignment:
+        _cell.alignment = alignment
+    if font:
+        _cell.font = font
+    return _cell
+
+
+def ecell(ws):
+    return cell(ws, None, border=BORDER_BLACK, alignment=None, font=None)
+
+
+def write_invoice(updater, workbook, save_path, address, dmc, group: DataFrame):
     sorted_group = group.sort_values("Service Date Cleaned")
 
     offset = 1
-
     ws = workbook.create_sheet()
 
-    columns = ["Tour Code", "Tour Manager", "Service Date", "Service Type", "Adult", "Children", "Price Adult", "Price Child"]
-    write_df = sorted_group[columns]
+    # column dimensions need to be written before any cell is written
+    for idx in range(1, 10):
+        if idx == 1:
+            width = 20
+        elif idx <= 4:
+            width = 16
+        else:
+            width = 13
+        ws.column_dimensions[get_column_letter(idx)].width = width
 
+    address_cell = cell(ws, address, font=FONT_BOLD, alignment=Alignment(wrapText=True, vertical="top"),
+                        border=BORDER_BLACK)
+    dmc_cell = cell(ws, dmc, font=FONT_BOLD, alignment=Alignment(horizontal="center", vertical="top"),
+                    border=BORDER_BLACK)
+
+    ws.append([address_cell, ecell(ws), None, None, None, dmc_cell, ecell(ws), ecell(ws), ecell(ws)])
+    ws.append([ecell(ws), ecell(ws), None, None, None, ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
+    ws.append([ecell(ws), ecell(ws), None, None, None, ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
+    ws.merged_cells.ranges.add("A1:B3")
+    ws.merged_cells.ranges.add("F1:I3")
+
+    ws.append([])
+
+    invoice_number_cell = cell(ws, "Invoice No.", font=FONT_BOLD, alignment=None, border=None)
+    date_cell = cell(ws, "Date", font=FONT_BOLD, alignment=None, border=None)
+    ws.append([invoice_number_cell, None, None, None, None, None, date_cell])
+    ws.merged_cells.ranges.add("A5:B5")
+    ws.merged_cells.ranges.add("H5:I5")
+
+    ws.append([])
+    offset += 6
+
+    columns = ["Tour Code", "Tour Manager", "Service Date", "Service Type",
+               "Adult", "Children", "Price Adult", "Price Child"]
+
+    write_df = sorted_group[columns]
     # itertuples cannot handle space in column name properly
     write_df = write_df.rename(lambda x: x.replace(" ", "_"), axis="columns")
 
     columns.append("Total")
-    ws.append(columns)
+    column_cells = []
+    for column in columns:
+        column_cell = cell(ws, column, font=FONT_BOLD)
+        column_cells.append(column_cell)
+    ws.append(column_cells)
     offset += 1
 
     for idx, row in enumerate(write_df.itertuples(index=False)):
+        row_cells = []
+        for row_idx, value in enumerate(row):
+            if row_idx == 2:
+                row_cell = cell(ws, row.Service_Date)
+                row_cell.number_format = "dd mmm"
+            else:
+                row_cell = cell(ws, value, font=None)
+            row_cells.append(row_cell)
+
         n_row = idx + offset
-        service_date_cell = WriteOnlyCell(ws, row.Service_Date)
-        service_date_cell.number_format = "dd mmm"
-        total_formula = f"=E{n_row} * G{n_row} + F{n_row} * H{n_row}"
-        ws.append([
-            row.Tour_Code,
-            row.Tour_Manager,
-            service_date_cell,
-            row.Service_Type,
-            row.Adult,
-            row.Children,
-            row.Price_Adult,
-            row.Price_Child,
-            total_formula
-        ])
+        total_formula_cell = cell(ws, f"=E{n_row} * G{n_row} + F{n_row} * H{n_row}")
+        row_cells.append(total_formula_cell)
 
-    ws.append([])
+        ws.append(row_cells)
 
-    grand_total_cell = WriteOnlyCell(ws, f"=SUM(I{offset}:I{offset + write_df.shape[0]})")
-    ws.append([None, None, None, "Grant Total", None, None, None, None, grand_total_cell])
+    ws.append([ecell(ws), ecell(ws), ecell(ws), ecell(ws),
+               ecell(ws), ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
+
+    grand_total_label_cell = cell(ws, "Grand Total", font=FONT_BOLD)
+    grand_total_cell = cell(ws, f"=SUM(I{offset}:I{offset + write_df.shape[0]})", font=FONT_BOLD)
+    ws.append([ecell(ws), ecell(ws), ecell(ws), ecell(ws),
+               ecell(ws), ecell(ws), ecell(ws), grand_total_label_cell, grand_total_cell])
 
     workbook.save(save_path)
-
     updater(f"Saved invoice to {save_path}")
 
 
-def write_all_invoices(updater, base_dir, df: DataFrame):
+def write_all_invoices(updater, base_dir, address, df: DataFrame):
     for name, group in df.groupby("Dmc Canonical"):
         try:
             workbook = Workbook(write_only=True)
             save_path = os.path.join(base_dir, str(name) + ".xlsx")
-            write_invoice(updater, workbook, save_path, group)
+            write_invoice(updater, workbook, save_path, address, name, group)
         except Exception:
             workbook.close()
             updater("Unable to write invoice for {name}: {e}".format(name=name, e=traceback.format_exc()))
@@ -195,6 +256,9 @@ def write_auxiliary_df(updater, base_dir, name, df: DataFrame):
     ws = wb.active
     for row in dataframe_to_rows(df, index=False, header=True):
         ws.append(row)
+    for idx in range(1, len(df.columns.tolist()) + 1):
+        width = 30 if idx == 1 else 18
+        ws.column_dimensions[get_column_letter(idx)].width = width
     save_path = os.path.join(base_dir, f"{name}.xlsx")
     wb.save(save_path)
     updater(f"Saved {name} tours to {save_path}")

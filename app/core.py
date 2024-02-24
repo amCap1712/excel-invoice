@@ -1,7 +1,6 @@
 from datetime import datetime, date
 from enum import Enum
 
-from Levenshtein import distance
 from pandas import DataFrame, Timestamp, concat
 
 
@@ -13,49 +12,6 @@ class Restaurant(Enum):
 RESTAURANTS = [Restaurant.DAWAT, Restaurant.WELCOME_INDIA]
 
 
-CANONICAL_DMCS = {
-    "Neemholidays": "Neem Holidays",
-    "Star Our": "Star Tour",
-    "Star": "Star Tour",
-    "Ezxa": "Exza",
-    "Tc": "TC",
-    "Gtt": "GTT",
-    "Chr": "CHR",
-    "Gb Dmc": "GB DMC",
-    "Gb Dmc Ltd.": "GB DMC",
-    "Youngedsplorer": "Young Edsplorer",
-    "Truvaiglobal": "Truvai",
-    "Truvai Dmc": "Truvai",
-    "Truvai Global": "Truvai",
-    "Europe Incomign": "Europe Incoming",
-    "Europeincoming": "Europe Incoming",
-    "Afc Holidyays": "AFC Holidays",
-    "Afc Holidays": "AFC Holidays",
-    "G2 Travel": "G2 Travels",
-    "G2Travel": "G2 Travels",
-    "G2-Travel": "G2 Travels",
-    "Holiday Carnival": "Holidays Carnival",
-    "Europe Goodlife": "Europe Good Life",
-    "Europegoodlife": "Europe Good Life",
-    "Gateways Group Of Dmcs": "Gateways Group Of Dmc'S",
-    "Gateways Dmc": "Gateways Group Of Dmc'S",
-    "Gateways Group Of Dmc’S": "Gateways Group Of Dmc'S",
-    "Deewan Holidays": "Dewan Holidays",
-    "Dewan Travels": "Dewan Holidays",
-    "Switru": "Switrus",
-    "European Gatewyas": "European Gateways",
-    "Lamour Voyage": "Lamour Voyages",
-    "Lamondialetour": "La Mondiale",
-    "Lamondiale Tour": "La Mondiale",
-    "Lamondiale Tours": "La Mondiale",
-    "Mahadevan Group": "Mahadevan",
-    "Whats App": "WhatsApp",
-    "Whatassp": "WhatsApp",
-    "Whatsapp": "WhatsApp"
-}
-IGNORE_DMC_DUPES = [("TC", "Tcf"), ("Magi Holidays", "Mango Holidays"), ("GTT", "TC")]
-
-
 def convert_to_date(value):
     if isinstance(value, Timestamp):
         return value.date()
@@ -64,20 +20,6 @@ def convert_to_date(value):
     if isinstance(value, date):
         return value
     return None
-
-
-def find_possible_dupes(updater, dmcs):
-    for dmc1 in dmcs:
-        dupes = []
-        for dmc2 in dmcs:
-            if dmc1 == dmc2:
-                continue
-            if distance(dmc1, dmc2) <= 2\
-                    and (dmc1, dmc2) not in IGNORE_DMC_DUPES\
-                    and (dmc2, dmc1) not in IGNORE_DMC_DUPES:
-                dupes.append(dmc2)
-        if dupes:
-            updater(f"Possible duplicates for '{dmc1}': {dupes}")
 
 
 def process_rates_df(updater, rates_df: DataFrame):

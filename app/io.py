@@ -97,6 +97,8 @@ def read_file(file) -> DataFrame | None:
 
     workbook = load_workbook(file, read_only=True)
     for restaurant in RESTAURANTS:
+        if restaurant.name not in workbook:
+            continue
         sheet = workbook[restaurant.name]
         header, data = read_sheet(sheet)
         if data is None:
@@ -169,7 +171,7 @@ def write_invoice(updater, workbook, save_path, address, dmc, group: DataFrame):
     for idx in range(1, 10):
         if idx == 1:
             width = 20
-        elif idx <= 4:
+        elif idx <= 3:
             width = 16
         else:
             width = 13
@@ -180,24 +182,24 @@ def write_invoice(updater, workbook, save_path, address, dmc, group: DataFrame):
     dmc_cell = cell(ws, dmc, font=FONT_BOLD, alignment=Alignment(horizontal="center", vertical="top"),
                     border=BORDER_BLACK)
 
-    ws.append([address_cell, ecell(ws), None, None, None, dmc_cell, ecell(ws), ecell(ws), ecell(ws)])
-    ws.append([ecell(ws), ecell(ws), None, None, None, ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
-    ws.append([ecell(ws), ecell(ws), None, None, None, ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
+    ws.append([address_cell, None, None, None, dmc_cell, ecell(ws), ecell(ws), ecell(ws)])
+    ws.append([ecell(ws), None, None, None, ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
+    ws.append([ecell(ws), None, None, None, ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
     ws.merged_cells.ranges.add("A1:B3")
-    ws.merged_cells.ranges.add("F1:I3")
+    ws.merged_cells.ranges.add("E1:H3")
 
     ws.append([])
 
     invoice_number_cell = cell(ws, "Invoice No.", font=FONT_BOLD, alignment=None, border=None)
     date_cell = cell(ws, "Date", font=FONT_BOLD, alignment=None, border=None)
-    ws.append([invoice_number_cell, None, None, None, None, None, date_cell])
+    ws.append([invoice_number_cell, None, None, None, None, date_cell])
     ws.merged_cells.ranges.add("A5:B5")
-    ws.merged_cells.ranges.add("H5:I5")
+    ws.merged_cells.ranges.add("G5:H5")
 
     ws.append([])
     offset += 6
 
-    columns = ["Tour Code", "Tour Manager", "Service Date", "Service Type",
+    columns = ["Tour Code", "Service Date", "Service Type",
                "Adult", "Children", "Price Adult", "Price Child"]
 
     write_df = sorted_group[columns]
@@ -215,7 +217,7 @@ def write_invoice(updater, workbook, save_path, address, dmc, group: DataFrame):
     for idx, row in enumerate(write_df.itertuples(index=False)):
         row_cells = []
         for row_idx, value in enumerate(row):
-            if row_idx == 2:
+            if row_idx == 1:
                 row_cell = cell(ws, row.Service_Date)
                 row_cell.number_format = "dd mmm"
             else:
@@ -223,18 +225,18 @@ def write_invoice(updater, workbook, save_path, address, dmc, group: DataFrame):
             row_cells.append(row_cell)
 
         n_row = idx + offset
-        total_formula_cell = cell(ws, f"=E{n_row} * G{n_row} + F{n_row} * H{n_row}")
+        total_formula_cell = cell(ws, f"=D{n_row} * F{n_row} + E{n_row} * G{n_row}")
         row_cells.append(total_formula_cell)
 
         ws.append(row_cells)
 
     ws.append([ecell(ws), ecell(ws), ecell(ws), ecell(ws),
-               ecell(ws), ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
+               ecell(ws), ecell(ws), ecell(ws), ecell(ws)])
 
     grand_total_label_cell = cell(ws, "Grand Total", font=FONT_BOLD)
-    grand_total_cell = cell(ws, f"=SUM(I{offset}:I{offset + write_df.shape[0]})", font=FONT_BOLD)
+    grand_total_cell = cell(ws, f"=SUM(H{offset}:H{offset + write_df.shape[0]})", font=FONT_BOLD)
     ws.append([ecell(ws), ecell(ws), ecell(ws), ecell(ws),
-               ecell(ws), ecell(ws), ecell(ws), grand_total_label_cell, grand_total_cell])
+               ecell(ws), ecell(ws), grand_total_label_cell, grand_total_cell])
 
     workbook.save(save_path)
     updater(f"Saved invoice to {save_path}")

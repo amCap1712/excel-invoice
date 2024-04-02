@@ -53,7 +53,7 @@ class Worker(QRunnable):
             suffix = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
             for restaurant in RESTAURANTS:
-                serviced_df, cancelled_df, invalid_df = process(self.from_date, self.to_date, rates_df, df)
+                serviced_df, cancelled_df, invalid_df = process(restaurant, self.from_date, self.to_date, rates_df, df)
 
                 restaurant_base_path = os.path.join(self.input_directory, restaurant.name, suffix)
                 if not (cancelled_df.empty and serviced_df.empty and invalid_df.empty):

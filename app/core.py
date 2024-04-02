@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime, date
 from textwrap import dedent
 
+import numpy as np
+from dateutil import parser
 from pandas import DataFrame, Timestamp, concat
 
 
@@ -18,9 +20,15 @@ RESTAURANTS = [
         93150 Le Blanc Mesnil Paris, France.
     """).strip()),
     Restaurant("WelcomeIndia", dedent("""
-        WelcomeIndia
-        Paris, France.
-    """).strip())
+        Welcome India
+        9 Bis Boulevard Du Montparnasse
+        75006 Paris, France.
+    """).strip()),
+    Restaurant("WaytoIndia", dedent("""
+        Way to India
+        Strombeeklinde 92, 1853 Grimbergen
+        Bruxelles, Belgique.
+""").strip())
 ]
 
 
@@ -31,6 +39,12 @@ def convert_to_date(value):
         return value.date()
     if isinstance(value, date):
         return value
+    if isinstance(value, str):
+        value = value.strip().replace("_", "-")
+        try:
+            return parser.parse(value).date()
+        except ValueError:
+            pass
     return None
 
 
@@ -114,7 +128,7 @@ def filter_unknown_dates(df: DataFrame) -> tuple[DataFrame, DataFrame]:
 
 
 def filter_missing_counts(df: DataFrame) -> tuple[DataFrame, DataFrame]:
-    missing_counts_mask = df["Adult"].isna() & df["Children"].isna()
+    missing_counts_mask = np.zeros(df.shape[0], dtype=bool)  # disable missing counts check for now
     missing_counts_df = df[missing_counts_mask]
     valid_counts_df = df[~missing_counts_mask]
     valid_counts_df["Adult"] = valid_counts_df["Adult"].fillna(0)
@@ -131,7 +145,9 @@ def fixup_invalid_df(invalid_df: DataFrame, reason: str) -> DataFrame | None:
     return invalid_df
 
 
-def process(from_date, to_date, rates_df: DataFrame, df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
+def process(restaurant: Restaurant, from_date, to_date, rates_df: DataFrame, df: DataFrame) \
+        -> tuple[DataFrame, DataFrame, DataFrame]:
+    df = df[df["Restaurant"] == restaurant.name]
     if "Tour Code" in df.columns:
         df["Tour Code"] = df["Tour Code"].str.strip()
 

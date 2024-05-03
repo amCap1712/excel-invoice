@@ -3,8 +3,13 @@ from datetime import datetime, date
 from textwrap import dedent
 
 import numpy as np
+import pandas
 from dateutil import parser
 from pandas import DataFrame, Timestamp, concat
+
+pandas.set_option('display.max_rows', None)
+pandas.set_option('display.max_columns', None)
+pandas.set_option('display.width', None)
 
 
 @dataclass
@@ -98,9 +103,16 @@ def filter_unknown_dmcs(df: DataFrame, rates_df: DataFrame) -> tuple[DataFrame, 
     return known_dmcs_df, unknown_dmcs_df
 
 
-def filter_unknown_rates(df: DataFrame, rates_df: DataFrame) -> tuple[DataFrame, DataFrame]:
+def filter_unknown_service_types(df: DataFrame, rates_df: DataFrame) -> tuple[DataFrame, DataFrame]:
+    unique_service_types = set(rates_df["Service Type"].unique().tolist())
     df["Service Type"] = df["Service Type"].str.title().str.strip().str.split().str.join(" ")
+    known_service_types_mask = df["Service Type"].isin(unique_service_types)
+    known_service_types_df = df[known_service_types_mask]
+    unknown_service_types_df = df[~known_service_types_mask]
+    return known_service_types_df, unknown_service_types_df
 
+
+def filter_unknown_rates(df: DataFrame, rates_df: DataFrame) -> tuple[DataFrame, DataFrame]:
     df["Dmc To Join"] = df["Dmc"].str.lower().str.strip().str.split().str.join(" ")
     df = df.merge(rates_df, how="left", on=["Dmc To Join", "Service Type"])
 
@@ -149,29 +161,33 @@ def process(restaurant: Restaurant, from_date, to_date, rates_df: DataFrame, df:
         -> tuple[DataFrame, DataFrame, DataFrame]:
     df = df[df["Restaurant"] == restaurant.name]
     if "Tour Code" in df.columns:
-        df["Tour Code"] = df["Tour Code"].str.strip()
+        df["Tour Code"] = df["Tour Code"].astype("str").str.strip()
 
     df, unknown_dates_df = filter_unknown_dates(df)
     df = df.loc[(df["Service Date Cleaned"] >= from_date) & (df["Service Date Cleaned"] <= to_date)]
 
     df, cancelled_df = filter_cancelled_tours(df)
     df, unknown_dmcs_df = filter_unknown_dmcs(df, rates_df)
+    df, unknown_service_types_df = filter_unknown_service_types(df, rates_df)
     df, unknown_rates_df = filter_unknown_rates(df, rates_df)
     df, missing_counts_df = filter_missing_counts(df)
 
     unknown_dates_df = fixup_invalid_df(unknown_dates_df, "Service date could not be parsed")
     unknown_dmcs_df = fixup_invalid_df(unknown_dmcs_df, "DMC is not known")
+    unknown_service_types_df = fixup_invalid_df(unknown_service_types_df, "Service type is not known")
     unknown_rates_df = fixup_invalid_df(unknown_rates_df, "Service type is unknown and Price Adult/Child not defined")
     missing_counts_df = fixup_invalid_df(missing_counts_df, "Both adult and children count is missing")
 
     invalid_dfs = []
-    if unknown_dates_df is not None:
+    if unknown_dates_df is not None and not unknown_dates_df.empty:
         invalid_dfs.append(unknown_dates_df)
-    if unknown_dmcs_df is not None:
+    if unknown_dmcs_df is not None and not unknown_dmcs_df.empty:
         invalid_dfs.append(unknown_dmcs_df)
-    if unknown_rates_df is not None:
+    if unknown_service_types_df is not None and not unknown_service_types_df.empty:
+        invalid_dfs.append(unknown_service_types_df)
+    if unknown_rates_df is not None and unknown_rates_df.empty:
         invalid_dfs.append(unknown_rates_df)
-    if missing_counts_df is not None:
+    if missing_counts_df is not None and not missing_counts_df.empty:
         invalid_dfs.append(missing_counts_df)
 
     if invalid_dfs:

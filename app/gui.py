@@ -141,8 +141,8 @@ class InvoiceGeneratorApp(QWidget):
         input_dir_layout.addWidget(self.input_dir_line_edit)
         input_dir_layout.addWidget(self.input_dir_button)
 
-        to_date = date.today()
-        from_date = to_date + relativedelta(months=-1, day=1)
+        to_date = date(2024, 4, 25)
+        from_date = date(2024, 4, 18)
 
         self.from_date_selector = QDateEdit()
         self.from_date_selector.setDisplayFormat("dd/MM/yyyy")

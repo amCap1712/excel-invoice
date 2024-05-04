@@ -46,14 +46,14 @@ class Worker(QRunnable):
         # TODO: use logger object instead of passing around updater
         updater = lambda x: self.signals.progress.emit(x)
         try:
-            df = read_all_files(updater, self.from_date, self.to_date, self.input_directory)
+            df, not_found_df, typos_df = read_all_files(updater, self.from_date, self.to_date, self.input_directory)
             rates_df = read_rates_file(self.input_directory)
             rates_df = process_rates_df(updater, rates_df)
 
             suffix = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
             for restaurant in RESTAURANTS:
-                serviced_df, cancelled_df, invalid_df = process(restaurant, self.from_date, self.to_date, rates_df, df)
+                serviced_df, cancelled_df, invalid_df = process(restaurant, self.from_date, self.to_date, rates_df, df, not_found_df, typos_df)
 
                 restaurant_base_path = os.path.join(self.input_directory, restaurant.name, suffix)
                 if not (cancelled_df.empty and serviced_df.empty and invalid_df.empty):
@@ -141,8 +141,8 @@ class InvoiceGeneratorApp(QWidget):
         input_dir_layout.addWidget(self.input_dir_line_edit)
         input_dir_layout.addWidget(self.input_dir_button)
 
-        to_date = date(2024, 4, 25)
-        from_date = date(2024, 4, 18)
+        to_date = date.today()
+        from_date = to_date + relativedelta(months=-1, day=1)
 
         self.from_date_selector = QDateEdit()
         self.from_date_selector.setDisplayFormat("dd/MM/yyyy")

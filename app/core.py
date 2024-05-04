@@ -157,8 +157,8 @@ def fixup_invalid_df(invalid_df: DataFrame, reason: str) -> DataFrame | None:
     return invalid_df
 
 
-def process(restaurant: Restaurant, from_date, to_date, rates_df: DataFrame, df: DataFrame) \
-        -> tuple[DataFrame, DataFrame, DataFrame]:
+def process(restaurant: Restaurant, from_date, to_date, rates_df: DataFrame, df: DataFrame, not_found_df: DataFrame,
+            typos_df: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
     df = df[df["Restaurant"] == restaurant.name]
     if "Tour Code" in df.columns:
         df["Tour Code"] = df["Tour Code"].astype("str").str.strip()
@@ -172,6 +172,12 @@ def process(restaurant: Restaurant, from_date, to_date, rates_df: DataFrame, df:
     df, unknown_rates_df = filter_unknown_rates(df, rates_df)
     df, missing_counts_df = filter_missing_counts(df)
 
+    restaurant_not_found_df = not_found_df.loc[not_found_df["Restaurant"] == restaurant.name]
+    restaurant_not_found_df = fixup_invalid_df(restaurant_not_found_df, "Sheet for restaurant not found")
+
+    restaurant_typos_df = typos_df.loc[typos_df["Restaurant"] == restaurant.name]
+    restaurant_typos_df = fixup_invalid_df(restaurant_typos_df, "Sheetname for restaurant has a typo")
+
     unknown_dates_df = fixup_invalid_df(unknown_dates_df, "Service date could not be parsed")
     unknown_dmcs_df = fixup_invalid_df(unknown_dmcs_df, "DMC is not known")
     unknown_service_types_df = fixup_invalid_df(unknown_service_types_df, "Service type is not known")
@@ -179,6 +185,10 @@ def process(restaurant: Restaurant, from_date, to_date, rates_df: DataFrame, df:
     missing_counts_df = fixup_invalid_df(missing_counts_df, "Both adult and children count is missing")
 
     invalid_dfs = []
+    if restaurant_not_found_df is not None and not restaurant_not_found_df.empty:
+        invalid_dfs.append(restaurant_not_found_df)
+    if restaurant_typos_df is not None and not restaurant_typos_df.empty:
+        invalid_dfs.append(restaurant_typos_df)
     if unknown_dates_df is not None and not unknown_dates_df.empty:
         invalid_dfs.append(unknown_dates_df)
     if unknown_dmcs_df is not None and not unknown_dmcs_df.empty:

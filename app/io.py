@@ -1,7 +1,7 @@
 import os
 import traceback
 from datetime import date
-from typing import Optional
+from typing import Optional, Tuple, List
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -13,8 +13,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.workbook import Workbook
 from pandas import concat, DataFrame
 
-from .core import RESTAURANTS
-
+from .core import RESTAURANTS, Restaurant
 
 MAX_ROWS = 50
 MAX_COLS = 25
@@ -92,14 +91,30 @@ def read_sheet(sheet):
     return header, data or None
 
 
-def read_file(file) -> DataFrame | None:
+def read_file(file) -> tuple[DataFrame | None, list[tuple], list[tuple]]:
+    filename = os.path.basename(file)
+    not_found = []
+    typos = []
     dfs = []
 
     workbook = load_workbook(file, read_only=True)
     for restaurant in RESTAURANTS:
-        if restaurant.name not in workbook:
+        sheet = None
+        if restaurant.name in workbook:
+            sheet = workbook[restaurant.name]
+        else:
+            for sheetname in workbook.sheetnames:
+                if (restaurant.name == "Dawat" and sheetname.lower().startswith("d")) or \
+                        (restaurant.name == "WelcomeIndia" and sheetname.lower().startswith("wel")) or \
+                        (restaurant.name == "WaytoIndia" and sheetname.lower().startswith("way")):
+                    sheet = workbook[sheetname]
+                    typos.append((filename, restaurant.name, sheetname))
+                    break
+
+        if sheet is None:
+            not_found.append((filename, restaurant.name))
             continue
-        sheet = workbook[restaurant.name]
+
         header, data = read_sheet(sheet)
         if data is None:
             continue
@@ -107,16 +122,16 @@ def read_file(file) -> DataFrame | None:
         df = df.dropna(axis=1, how="all")
         df["Restaurant"] = restaurant.name
 
-        df["File Name"] = os.path.basename(file)
+        df["File Name"] = filename
         df.insert(0, "File Name", df.pop("File Name"))
 
         dfs.append(df)
     workbook.close()
 
     if len(dfs) == 0:
-        return None
+        return None, not_found, typos
 
-    return concat(dfs, ignore_index=True)
+    return concat(dfs, ignore_index=True), not_found, typos
 
 
 def read_all_files(updater, from_date, to_date, base_dir):
@@ -124,19 +139,26 @@ def read_all_files(updater, from_date, to_date, base_dir):
     updater(f"Found {len(files)} files")
 
     dfs = []
+    not_found = []
+    typos = []
     for file in files:
-        df = read_file(file)
+        df, _not_found, _typos = read_file(file)
+        not_found.extend(_not_found)
+        typos.extend(_typos)
         if df is None:
             updater("No data found for " + file)
             continue
         dfs.append(df)
 
+    not_found_df = DataFrame(not_found, columns=["File Name", "Restaurant"])
+    typos_df = DataFrame(typos, columns=["File Name", "Restaurant", "Sheet Name"])
+
     if len(dfs) == 0:
         updater("No data found for any file")
-        return None
+        return None, not_found_df, typos_df
 
     combined_df = concat(dfs, ignore_index=True)
-    return combined_df
+    return combined_df, not_found_df, typos_df
 
 
 def read_rates_file(base_dir):

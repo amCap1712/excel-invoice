@@ -1,7 +1,7 @@
 import os
 import traceback
 from datetime import date
-from typing import Optional, Tuple, List
+from typing import Optional
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -13,7 +13,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.workbook import Workbook
 from pandas import concat, DataFrame
 
-from .core import RESTAURANTS, Restaurant
+from .core import RESTAURANTS
 
 MAX_ROWS = 50
 MAX_COLS = 25
@@ -30,10 +30,15 @@ def get_directories(from_date: date, to_date: date):
     delta = relativedelta(months=1, day=1)
     current_date = from_date
     while current_date <= to_date:
-        if current_date.month not in months_done:
-            directories.append(current_date.strftime("%B"))
-            directories.append(current_date.strftime("%b"))
-        months_done.add(current_date.month)
+        month = current_date.strftime("%B")
+        if month not in months_done:
+            directories.append(month)
+            months_done.add(month)
+
+        month = current_date.strftime("%b")
+        if month not in months_done:
+            directories.append(month)
+            months_done.add(month)
         current_date += delta
 
     return directories
@@ -150,14 +155,14 @@ def read_all_files(updater, from_date, to_date, base_dir):
             continue
         dfs.append(df)
 
-    not_found_df = DataFrame(not_found, columns=["File Name", "Restaurant"])
-    typos_df = DataFrame(typos, columns=["File Name", "Restaurant", "Sheet Name"])
+    not_found_df = DataFrame(not_found, columns=["File Name", "Restaurant"]).drop_duplicates(ignore_index=True)
+    typos_df = DataFrame(typos, columns=["File Name", "Restaurant", "Sheet Name"]).drop_duplicates(ignore_index=True)
 
     if len(dfs) == 0:
         updater("No data found for any file")
         return None, not_found_df, typos_df
 
-    combined_df = concat(dfs, ignore_index=True)
+    combined_df = concat(dfs, ignore_index=True).drop_duplicates(ignore_index=True)
     return combined_df, not_found_df, typos_df
 
 

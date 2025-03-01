@@ -111,7 +111,8 @@ def read_file(file) -> tuple[DataFrame | None, list[tuple], list[tuple]]:
             for sheetname in workbook.sheetnames:
                 if (restaurant.name == "Dawat" and sheetname.lower().startswith("d")) or \
                         (restaurant.name == "WelcomeIndia" and sheetname.lower().startswith("wel")) or \
-                        (restaurant.name == "WaytoIndia" and sheetname.lower().startswith("way")):
+                        (restaurant.name == "WaytoIndia" and sheetname.lower().startswith("way")) or \
+                        (restaurant.name == "Tara" and sheetname.lower().startswith("t")):
                     sheet = workbook[sheetname]
                     typos.append((filename, restaurant.name, sheetname))
                     break

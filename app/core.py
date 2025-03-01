@@ -7,9 +7,9 @@ import pandas
 from dateutil import parser
 from pandas import DataFrame, Timestamp, concat
 
-pandas.set_option('display.max_rows', None)
-pandas.set_option('display.max_columns', None)
-pandas.set_option('display.width', None)
+pandas.set_option("display.max_rows", None)
+pandas.set_option("display.max_columns", None)
+pandas.set_option("display.width", None)
 
 
 @dataclass
@@ -33,7 +33,12 @@ RESTAURANTS = [
         Way to India
         Strombeeklinde 92, 1853 Grimbergen
         Bruxelles, Belgique.
-""").strip())
+    """).strip()),
+    Restaurant("Tara", dedent("""
+        Tara
+        58 Avenue du 8 mai 1945
+        93150 Le Blanc Mesnil Paris, France.
+    """))
 ]
 
 
